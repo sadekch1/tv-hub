@@ -1,0 +1,9 @@
+*.iml
+.gradle/
+build/
+local.properties
+.idea/
+nodejs-project/node_modules/
+app/src/main/assets/nodejs/main.js
+app/libnode/
+app/.cxx/

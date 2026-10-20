@@ -1,0 +1,10 @@
+const tv=require('./tvstream.js');
+const ok=(c,m)=>console.log((c?'PASS':'FAIL')+' - '+m);
+delete process.env.TV_ALLOWED;
+ok(tv.isAllowedSender({fromMe:true}),'fromMe allowed');
+ok(!tv.isAllowedSender({remoteJid:'213555000111@s.whatsapp.net'}),'stranger blocked when no list');
+process.env.TV_ALLOWED='+213 555 000 111, 966500000000';
+ok(tv.isAllowedSender({remoteJid:'213555000111@s.whatsapp.net'}),'listed number allowed');
+ok(tv.isAllowedSender({remoteJid:'99999@lid',remoteJidAlt:'966500000000@s.whatsapp.net'}),'LID with phone alt allowed');
+ok(!tv.isAllowedSender({remoteJid:'12345678901@s.whatsapp.net'}),'unlisted blocked');
+ok(!tv.isAllowedSender({remoteJid:'120363@g.us',participant:'213555000111@s.whatsapp.net'}),'groups blocked');

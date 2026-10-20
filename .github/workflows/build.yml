@@ -1,0 +1,80 @@
+name: Build TV Hub APK
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test TV session logic
+        working-directory: android/nodejs-project
+        run: node tvsession.test.js
+
+      - name: Bundle Node engine (Baileys)
+        working-directory: android/nodejs-project
+        run: |
+          npm install --no-audit --no-fund
+          mkdir -p ../app/src/main/assets/nodejs
+          npx esbuild index.js --bundle --platform=node --target=node18 --format=cjs \
+            --outfile=../app/src/main/assets/nodejs/main.js \
+            --external:sharp --external:jimp --external:link-preview-js \
+            --external:bufferutil --external:utf-8-validate --external:audio-decode \
+            --external:qrcode-terminal --external:@ffmpeg-installer/ffmpeg
+          ls -la ../app/src/main/assets/nodejs
+
+      - name: Fetch nodejs-mobile (libnode.so)
+        run: |
+          curl -fL -o node.zip https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android.zip
+          mkdir -p app/libnode
+          unzip -q node.zip -d node_tmp
+          SRC=$(dirname "$(find node_tmp -type d -name bin | head -1)")
+          cp -r "$SRC"/bin app/libnode/bin
+          cp -r "$SRC"/include app/libnode/include
+          find app/libnode -name libnode.so
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.9
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk ../TV-Hub.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TV-Hub-APK
+          path: TV-Hub.apk
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*

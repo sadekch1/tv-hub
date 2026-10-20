@@ -1,0 +1,9 @@
+node_modules/
+android/app/build/
+android/build/
+android/.gradle/
+android/app/libnode/
+android/app/src/main/assets/nodejs/
+android/nodejs-project/node_modules/
+*.apk
+local.properties

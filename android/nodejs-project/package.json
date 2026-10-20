@@ -1,0 +1,13 @@
+{
+  "name": "wadl-node",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "^9.6.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.1"
+  }
+}

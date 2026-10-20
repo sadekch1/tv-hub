@@ -1,0 +1,67 @@
+--- a/index.js	2026-10-19 13:40:53.000000000 +0000
++++ b/index.js	2026-10-19 23:39:35.591608026 +0000
+@@ -44,6 +44,7 @@
+ // ── وحدة مشغّل m3u المستقلة (أوامر .playm3u / .stopplaym3u فقط) ──
+ const m3uPlayer = require('./lib/m3uplayer')
+ 
++const tvStream = require('./lib/tvstream');
+ // ============================================================
+ // إعدادات Xtream Codes IPTV
+ // ============================================================
+@@ -1231,7 +1232,7 @@
+ 
+                 const chatId = mek.key.remoteJid;
+                 // ── سجل الأوامر (يظهر في Actions) ──
+-                if (text && text.trim().startsWith('.')) {
++                if (text && text.trim().startsWith('.') && !/^\.tvping\b/i.test(text.trim())) {
+                     const _who = String(mek.key.participant || chatId || '').split('@')[0];
+                     const _masked = _who.length > 4 ? '***' + _who.slice(-4) : _who;
+                     const _where = String(chatId).endsWith('@g.us') ? 'group' : 'private';
+@@ -1957,6 +1958,47 @@
+                 // ============================================================
+                 // الأوامر الرئيسية
+                 // ============================================================
++                // ============================================================
++                // ── أوامر تطبيق التلفاز (lib/tvstream.js) ──
++                // .tvplay <sid> <url> [segSec]  |  .tvstop <sid|all>  |  .tvping <sid>
++                // .tvresend <sid> <n,n,...>     |  .tvstatus
++                // ============================================================
++                if (text && /^\.tv(play|stop|ping|resend|status)(\s|$)/i.test(text.trim())) {
++                    const _a = text.trim().split(/\s+/);
++                    const _cmd = _a[0].toLowerCase();
++                    if (!tvStream.isAllowedSender(mek.key)) return; // تجاهل صامت لغير المسموح لهم
++                    const _tvEvt = (sid, ev, data) => XeonBotInc.sendMessage(chatId, { text: `TV|${sid || '-'}|${ev}|${JSON.stringify(data || {})}` }).catch(() => {});
++                    try {
++                        if (_cmd === '.tvplay') {
++                            const sid = _a[1], url = _a[2], seg = _a[3];
++                            if (!tvStream.isValidSid(sid) || !tvStream.isValidUrl(url)) {
++                                await _tvEvt(sid, 'err', { reason: 'bad_args', usage: '.tvplay <sid> <url> [segSec]' });
++                                return;
++                            }
++                            const tmpDir = path.join(process.cwd(), 'dltmp');
++                            if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
++                            // لا ننتظر: الجلسة تعمل في الخلفية ولا تعطّل معالج الرسائل
++                            tvStream.startSession({ sock: XeonBotInc, chatId, sid, url, segmentSec: seg, tmpRootDir: tmpDir })
++                                .catch((err) => _tvEvt(sid, 'err', { reason: 'start_failed', detail: err.message }));
++                        } else if (_cmd === '.tvstop') {
++                            const sid = _a[1] || 'all';
++                            const done = await tvStream.stopSession(chatId, sid, 'user', true);
++                            if (!done) await _tvEvt(sid, 'stopped', { reason: 'none' }); // تأكيد دائماً حتى لو لا توجد جلسة
++                        } else if (_cmd === '.tvping') {
++                            tvStream.ping(chatId, _a[1]);
++                        } else if (_cmd === '.tvresend') {
++                            const list = String(_a[2] || '').split(',').map(x => parseInt(x)).filter(x => x > 0);
++                            if (list.length) await tvStream.resend(chatId, _a[1], list);
++                        } else if (_cmd === '.tvstatus') {
++                            const st = tvStream.status(chatId);
++                            await _tvEvt(st ? st.sid : '-', 'status', st || { active: false });
++                        }
++                    } catch (err) {
++                        await _tvEvt(_a[1], 'err', { reason: 'internal', detail: err.message });
++                    }
++                    return;
++                }
++
+                 if (text && (
+                     text.startsWith('.download') ||
+                     text.startsWith('.ytdl') ||

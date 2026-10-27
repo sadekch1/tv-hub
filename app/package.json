@@ -1,0 +1,28 @@
+{
+  "name": "tv-hub",
+  "version": "2.0.0",
+  "description": "TV Hub: IPTV over WhatsApp",
+  "author": "sadekch1",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "serve": "node serve.js",
+    "dist": "electron-builder --publish never"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "pino": "^9.0.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.sadekch1.tvhub",
+    "productName": "TV Hub",
+    "files": ["main.js", "core/**", "ui/**", "package.json"],
+    "win": { "target": "nsis" },
+    "linux": { "target": "AppImage", "category": "AudioVideo" }
+  }
+}

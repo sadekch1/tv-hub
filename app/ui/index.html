@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TV Hub</title>
+<style>
+:root{
+  --ink:#0f1322; --panel:#171c33; --raise:#1f2542; --line:#2c3459;
+  --text:#e9edfa; --mute:#8f99bd; --sig:#8aa8ff; --wait:#ffb85c; --bad:#ff7a8a;
+  --r:10px;
+  font-family:"Segoe UI","Noto Sans Arabic","Noto Naskh Arabic",Tahoma,system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--ink);color:var(--text)}
+body{display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--raise);border:1px solid var(--line);border-radius:8px;padding:.5rem .9rem;cursor:pointer}
+button:hover{border-color:var(--sig)}
+button.go{background:var(--sig);color:#0b1020;border-color:var(--sig);font-weight:600}
+:focus-visible{outline:2px solid var(--sig);outline-offset:2px}
+input,select{background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:.5rem .7rem;width:100%}
+header{display:flex;align-items:center;gap:.8rem;padding:.7rem 1rem;border-bottom:1px solid var(--line)}
+header h1{font-size:1.1rem;margin:0;flex:1;letter-spacing:.01em}
+.pill{font-size:.8rem;padding:.2rem .7rem;border-radius:99px;border:1px solid var(--line);color:var(--mute)}
+.pill.ok{color:var(--sig);border-color:var(--sig)}
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr);gap:1rem;padding:1rem}
+#stage{display:flex;flex-direction:column;gap:.7rem;min-width:0}
+#box{position:relative;aspect-ratio:16/9;background:#000;border-radius:var(--r);overflow:hidden;border:1px solid var(--line)}
+#box video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0}
+#box video.on{opacity:1}
+#ov{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:1rem;color:var(--mute);pointer-events:none;font-size:1.05rem}
+#ov.hide{display:none}
+#cells{display:flex;gap:3px;direction:ltr;height:14px}
+#cells i{flex:1;border-radius:3px;background:var(--raise)}
+#cells i.f{background:var(--sig)}
+#cells.wait i.f{background:var(--wait)}
+#row{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
+#st{flex:1;min-width:10rem;color:var(--mute);font-size:.92rem}
+#vol{width:90px;padding:0}
+#toast{min-height:1.4rem;font-size:.9rem;color:var(--wait)}
+#toast.err{color:var(--bad)}
+#side{display:flex;flex-direction:column;gap:.8rem;min-height:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.8rem}
+.card h2{font-size:.95rem;margin:0 0 .6rem}
+.row{display:flex;gap:.5rem}
+.card p{margin:.4rem 0 0;color:var(--mute);font-size:.85rem}
+#code{font-size:1.6rem;letter-spacing:.15em;direction:ltr;text-align:center;color:var(--sig);margin-top:.6rem}
+.list{flex:1;min-height:0;display:flex;flex-direction:column}
+#list{list-style:none;margin:.6rem 0 0;padding:0;overflow:auto;flex:1;min-height:12rem}
+#list li{display:flex;align-items:center;gap:.7rem;padding:.45rem;border-radius:8px;cursor:pointer}
+#list li:hover{background:var(--raise)}
+#list li.cur{background:var(--raise);box-shadow:inset 3px 0 0 var(--sig)}
+.logo{width:42px;height:42px;border-radius:8px;background:var(--ink);display:grid;place-items:center;color:var(--mute);flex:none;overflow:hidden;font-weight:600}
+.logo img{width:100%;height:100%;object-fit:contain}
+.nm{min-width:0}.nm b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm small{color:var(--mute)}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:var(--r);width:min(420px,92vw)}
+dialog::backdrop{background:#0009}
+dialog label{display:block;margin:.7rem 0 .25rem;font-size:.88rem;color:var(--mute)}
+[hidden]{display:none!important}
+@media (max-width:860px){
+  main{grid-template-columns:1fr;overflow:auto}
+  #stage{position:sticky;top:0;z-index:5;background:var(--ink);padding-bottom:.4rem}
+  #list{min-height:50vh}
+}
+@media (prefers-reduced-motion:no-preference){#box video{transition:opacity .15s}}
+</style>
+</head>
+<body>
+<header>
+  <h1>TV Hub</h1>
+  <span id="conn" class="pill">…</span>
+  <button id="bSet">الإعدادات</button>
+</header>
+<main>
+  <section id="stage">
+    <div id="box"><video id="v0" playsinline></video><video id="v1" playsinline></video><div id="ov">اختر قناة لبدء المشاهدة</div></div>
+    <div id="cells"></div>
+    <div id="row">
+      <div id="st"></div>
+      <input id="vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="مستوى الصوت">
+      <button id="bFs">ملء الشاشة</button>
+      <button id="bStop">إيقاف</button>
+    </div>
+    <div id="toast"></div>
+  </section>
+  <section id="side">
+    <div id="pair" class="card" hidden>
+      <h2>ربط حساب واتساب</h2>
+      <div class="row"><input id="phone" inputmode="tel" placeholder="رقمك مع رمز الدولة، مثال 213555000111"><button id="bPair" class="go">اطلب الرمز</button></div>
+      <div id="code"></div>
+      <p>في واتساب: الأجهزة المرتبطة ← ربط جهاز ← الربط برقم الهاتف، ثم أدخل الرمز.</p>
+    </div>
+    <div id="imp" class="card">
+      <h2>إضافة قائمة قنوات</h2>
+      <div class="row"><input id="url" placeholder="رابط قائمة m3u"><button id="bImp" class="go">إضافة</button></div>
+      <p>أو <input id="file" type="file" accept=".m3u,.m3u8,.txt,text/plain" style="width:auto;padding:.2rem"> (تحتاج إنترنتاً عادياً مرة واحدة فقط)</p>
+    </div>
+    <div class="card list">
+      <div class="row"><input id="q" placeholder="ابحث عن قناة"><select id="grp" style="max-width:40%"><option value="">كل المجموعات</option></select></div>
+      <ul id="list"></ul>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="frm">
+    <h2 style="margin:0 0 .5rem;font-size:1rem">الإعدادات</h2>
+    <label for="fBot">رقم البوت (مع رمز الدولة)</label><input id="fBot" inputmode="tel">
+    <label for="fBuf">وسادة الأمان</label>
+    <select id="fBuf"><option value="3">3 دقائق</option><option value="5">5 دقائق</option><option value="10">10 دقائق</option></select>
+    <label for="fSeg">مدة كل جزء (دقائق)</label><input id="fSeg" type="number" min="1" max="5">
+    <label for="fTot">مدة البث الكلية (دقائق)</label><input id="fTot" type="number" min="5" max="240">
+    <div class="row" style="margin-top:1rem"><button type="button" id="fSave" class="go">حفظ</button><button value="cancel">إغلاق</button></div>
+  </form>
+</dialog>
+
+<script>
+'use strict';
+const T = new URLSearchParams(location.search).get('t') || '';
+const $ = (s) => document.querySelector(s);
+const q = (p) => p + (p.includes('?') ? '&' : '?') + 't=' + T;
+async function api(p, body) {
+  const r = await fetch(q('/api/' + p), body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+let toastTimer;
+function toast(msg, err) {
+  const t = $('#toast'); t.textContent = msg; t.className = err ? 'err' : '';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.textContent = ''; }, 9000);
+}
+
+/* ---------- الحالة ---------- */
+let S = null, channels = [], logoVer = 0;
+const have = new Set();
+const vids = [$('#v0'), $('#v1')];
+let ai = 0, cur = 0, mode = 'idle', stalls = 0, stalledSince = 0, finished = false;
+const A = () => vids[ai], I = () => vids[1 - ai];
+const src = (n) => q('/part/' + n);
+const segSec = () => (S ? S.settings.segMin : 1) * 60;
+const need = () => Math.max(1, Math.ceil((S.settings.bufferMin * 60) / segSec()));
+const resumeAhead = () => Math.max(2, Math.ceil(need() / 3));
+const ahead = (from) => { let c = 0; while (have.has(from + c)) c++; return c; };
+const fmt = (s) => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+
+function load(v, n) { v.dataset.n = n; v.src = src(n); v.load(); }
+function preload() { const n = cur + 1; if (have.has(n) && I().dataset.n != n) load(I(), n); }
+
+function hardReset() {
+  vids.forEach((v) => { v.pause(); v.removeAttribute('src'); v.load(); v.dataset.n = ''; v.classList.remove('on'); });
+  have.clear(); cur = 0; mode = 'idle'; stalls = 0; finished = false;
+}
+
+function tryStart() {
+  if (mode !== 'buffering' || have.size < need()) return;
+  cur = Math.min(...have);
+  load(A(), cur);
+  A().classList.add('on');
+  A().play().catch(() => toast('اضغط على الفيديو لبدء التشغيل', true));
+  mode = 'playing';
+  preload();
+}
+
+function swapTo(n) {
+  if (I().dataset.n != n) load(I(), n);
+  const old = A();
+  ai = 1 - ai; cur = n; mode = 'playing';
+  A().classList.add('on'); old.classList.remove('on');
+  A().play().catch(() => {});
+  old.pause(); old.dataset.n = '';
+  preload();
+  api('played', { n: cur }).catch(() => {});
+}
+
+function advance() {
+  const next = cur + 1;
+  if (have.has(next)) return swapTo(next);
+  mode = 'stalled'; stalledSince = Date.now(); stalls++;
+  if (stalls >= 2) toast('توقف التشغيل مرتين. ارفع وسادة الأمان من الإعدادات.', true);
+  checkResume();
+}
+
+function checkResume() {
+  if (mode !== 'stalled') return;
+  const next = cur + 1;
+  const later = [...have].filter((n) => n > next).sort((a, b) => a - b);
+  if (have.has(next) && ahead(next) >= resumeAhead()) return swapTo(next);
+  // جزء مفقود نهائياً: نتخطاه بعد 20 ثانية إن وصلت أجزاء أحدث
+  if (!have.has(next) && later.length && Date.now() - stalledSince > 20000) { cur = later[0] - 1; return swapTo(later[0]); }
+  if (finished && !later.length && !have.has(next)) { mode = 'idle'; $('#ov').textContent = 'انتهى البث'; $('#ov').classList.remove('hide'); }
+}
+
+vids.forEach((v) => {
+  v.onended = () => { if (v === A()) advance(); };
+  v.onerror = () => { if (v === A() && v.dataset.n) advance(); };
+});
+
+/* ---------- العرض ---------- */
+function render() {
+  const box = $('#cells');
+  const total = S ? Math.max(need(), 6) : 6;
+  let secs = 0, filled = 0;
+  if (mode === 'buffering') filled = have.size;
+  if (mode === 'playing') {
+    const v = A();
+    secs = ahead(cur + 1) * segSec() + Math.max(0, (v.duration || segSec()) - v.currentTime);
+    filled = Math.min(total, Math.round(secs / segSec()));
+    v.playbackRate = secs < 40 ? 0.92 : 1;
+  }
+  if (box.children.length !== total) { box.textContent = ''; for (let i = 0; i < total; i++) box.appendChild(document.createElement('i')); }
+  [...box.children].forEach((c, i) => c.classList.toggle('f', i < filled));
+  box.classList.toggle('wait', mode !== 'playing');
+
+  const ov = $('#ov'), st = $('#st');
+  const name = S && S.playing ? S.playing.name : '';
+  if (mode === 'buffering') { ov.textContent = 'جارٍ تجميع الوسادة: ' + have.size + ' / ' + need() + ' أجزاء'; ov.classList.remove('hide'); st.textContent = name; }
+  else if (mode === 'stalled') { ov.textContent = 'نفدت الوسادة. بانتظار ' + resumeAhead() + ' أجزاء'; ov.classList.remove('hide'); st.textContent = name; }
+  else if (mode === 'playing') { ov.classList.add('hide'); st.textContent = name + ' — الوسادة ' + fmt(secs); }
+  else if (!finished) { ov.textContent = 'اختر قناة لبدء المشاهدة'; ov.classList.remove('hide'); st.textContent = ''; }
+}
+setInterval(() => { if (mode === 'stalled') checkResume(); if (S) render(); }, 1000);
+
+function renderConn() {
+  const c = $('#conn');
+  const map = { open: 'متصل بواتساب', connecting: 'جارٍ الاتصال…', 'needs-pair': 'غير مرتبط' };
+  c.textContent = map[S.conn] || S.conn; c.classList.toggle('ok', S.conn === 'open');
+  $('#pair').hidden = S.conn !== 'needs-pair';
+}
+
+function renderList() {
+  const term = $('#q').value.trim().toLowerCase(), g = $('#grp').value;
+  const ul = $('#list'); ul.textContent = '';
+  if (!channels.length) { const li = document.createElement('li'); li.style.cursor = 'default'; li.textContent = 'لا توجد قنوات بعد. أضف قائمة m3u من الأعلى.'; ul.appendChild(li); return; }
+  let shown = 0;
+  for (const c of channels) {
+    if (g && c.group !== g) continue;
+    if (term && !c.name.toLowerCase().includes(term)) continue;
+    if (shown++ >= 150) break;
+    const li = document.createElement('li');
+    if (S && S.playing && S.playing.name === c.name) li.className = 'cur';
+    const lg = document.createElement('div'); lg.className = 'logo';
+    if (c.logoId) {
+      const im = document.createElement('img'); im.loading = 'lazy'; im.alt = '';
+      im.src = q('/logo/' + c.logoId) + '&v=' + logoVer;
+      im.onerror = () => { im.remove(); lg.textContent = c.name.slice(0, 1); };
+      lg.appendChild(im);
+    } else lg.textContent = c.name.slice(0, 1);
+    const nm = document.createElement('div'); nm.className = 'nm';
+    const b = document.createElement('b'); b.textContent = c.name;
+    const sm = document.createElement('small'); sm.textContent = c.group || '';
+    nm.append(b, sm); li.append(lg, nm);
+    li.onclick = () => playChannel(c);
+    ul.appendChild(li);
+  }
+}
+
+async function loadChannels() {
+  channels = await api('channels');
+  const sel = $('#grp'), keep = sel.value;
+  sel.length = 1;
+  [...new Set(channels.map((c) => c.group).filter(Boolean))].sort().forEach((g) => sel.add(new Option(g, g)));
+  sel.value = keep;
+  renderList();
+}
+
+/* ---------- الإجراءات ---------- */
+async function playChannel(c) {
+  try {
+    hardReset(); mode = 'buffering';
+    await api('play', { id: c.id });
+    toast('تم إرسال الطلب إلى البوت. أول جزء يصل بعد دقيقة تقريباً.');
+  } catch (e) { hardReset(); toast(e.message, true); }
+}
+$('#bStop').onclick = async () => { try { await api('stop', {}); } catch (e) { toast(e.message, true); } hardReset(); render(); };
+$('#bFs').onclick = () => { const b = $('#box'); (document.fullscreenElement ? document.exitFullscreen() : b.requestFullscreen && b.requestFullscreen()); };
+$('#vol').oninput = (e) => vids.forEach((v) => { v.volume = +e.target.value; });
+$('#q').oninput = renderList; $('#grp').onchange = renderList;
+
+$('#bPair').onclick = async () => {
+  try { const r = await api('pair', { phone: $('#phone').value }); $('#code').textContent = r.code; }
+  catch (e) { toast(e.message, true); }
+};
+async function doImport(body) {
+  toast('جارٍ قراءة القائمة…');
+  try { const r = await api('import', body); toast('تمت إضافة ' + r.count + ' قناة. تُحمَّل الأيقونات في الخلفية.'); await loadChannels(); }
+  catch (e) { toast(e.message, true); }
+}
+$('#bImp').onclick = () => { const u = $('#url').value.trim(); if (u) doImport({ url: u }); };
+$('#file').onchange = (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader(); rd.onload = () => doImport({ text: String(rd.result) }); rd.readAsText(f);
+};
+
+$('#bSet').onclick = () => {
+  $('#fBot').value = S.settings.botNumber; $('#fBuf').value = S.settings.bufferMin;
+  $('#fSeg').value = S.settings.segMin; $('#fTot').value = S.settings.totalMin;
+  $('#dlg').showModal();
+};
+$('#fSave').onclick = async () => {
+  try {
+    await api('settings', { botNumber: $('#fBot').value, bufferMin: $('#fBuf').value, segMin: $('#fSeg').value, totalMin: $('#fTot').value });
+    $('#dlg').close(); toast('تم حفظ الإعدادات');
+  } catch (e) { toast(e.message, true); }
+};
+
+/* ---------- الأحداث من الخادم ---------- */
+const es = new EventSource(q('/events'));
+es.addEventListener('state', (e) => {
+  const first = !S;
+  S = JSON.parse(e.data);
+  renderConn();
+  if (!S.playing && mode !== 'idle') hardReset();
+  if (S.playing && mode === 'idle') { mode = 'buffering'; S.parts.forEach((n) => have.add(n)); tryStart(); }
+  if (first) { if (S.channels) loadChannels(); if (!S.settings.botNumber) $('#bSet').click(); }
+  renderList(); render();
+});
+es.addEventListener('part', (e) => {
+  const { n } = JSON.parse(e.data); have.add(n);
+  if (mode === 'buffering') tryStart(); else if (mode === 'playing') preload(); else if (mode === 'stalled') checkResume();
+});
+es.addEventListener('bot', (e) => {
+  const t = JSON.parse(e.data);
+  if (/اكتمل|انتهى/.test(t)) finished = true;
+  if (t.startsWith('❌') || t.startsWith('⚠️')) toast('البوت: ' + t.split('\n')[0], true);
+});
+es.addEventListener('logos', () => { logoVer++; renderList(); });
+</script>
+</body>
+</html>
